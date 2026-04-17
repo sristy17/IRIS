@@ -1,0 +1,115 @@
+import requests
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse
+import json
+from collections import deque
+
+
+class Crawler:
+    def __init__(self, seed_url, max_pages=50):
+        self.seed_url = seed_url
+        self.max_pages = max_pages
+        self.visited = set()
+        self.queue = deque([seed_url])
+        self.documents = []
+
+        self.base_domain = urlparse(seed_url).netloc
+
+        self.headers = {
+            "User-Agent": "Mozilla/5.0 (compatible; IRIS/1.0)"
+        }
+
+    def fetch_page(self, url):
+        try:
+            response = requests.get(url, headers=self.headers, timeout=5)
+
+            if response.status_code == 200:
+                return response.text
+            else:
+                print(f"Blocked: {url} ({response.status_code})")
+
+        except Exception as e:
+            print(f"Error: {url} -> {e}")
+
+        return None
+
+    def extract_text(self, html):
+        soup = BeautifulSoup(html, "lxml")
+
+        # remove unwanted tags
+        for tag in soup(["script", "style", "noscript"]):
+            tag.decompose()
+
+        text = soup.get_text(separator=" ")
+        return " ".join(text.split())
+
+    def extract_links(self, html, base_url):
+        soup = BeautifulSoup(html, "lxml")
+        links = set()
+
+        for tag in soup.find_all("a", href=True):
+            href = tag["href"]
+            full_url = urljoin(base_url, href)
+
+            parsed = urlparse(full_url)
+
+            # only http(s)
+            if parsed.scheme not in ["http", "https"]:
+                continue
+
+            # stay within same domain (relaxed)
+            if self.base_domain not in parsed.netloc:
+                continue
+
+            # remove fragments (#section)
+            clean_url = full_url.split("#")[0]
+
+            # skip useless/edit pages
+            if "action=" in clean_url or "edit" in clean_url:
+                continue
+
+            links.add(clean_url)
+
+        return links
+
+    def crawl(self):
+        doc_id = 0
+
+        while self.queue and len(self.visited) < self.max_pages:
+            url = self.queue.popleft()
+
+            if url in self.visited:
+                continue
+
+            print(f"Crawling: {url}")
+
+            html = self.fetch_page(url)
+            if not html:
+                continue
+
+            text = self.extract_text(html)
+
+            self.documents.append({
+                "id": doc_id,
+                "url": url,
+                "text": text
+            })
+
+            self.visited.add(url)
+            doc_id += 1
+
+            # extract and enqueue links
+            links = self.extract_links(html, url)
+            print(f"→ Found {len(links)} links")
+
+            for link in links:
+                if link not in self.visited:
+                    self.queue.append(link)
+
+        return self.documents
+
+    def save(self, path="storage/documents.json"):
+        with open(path, "w") as f:
+            json.dump(self.documents, f, indent=2)
+
+        print(f"Saved {len(self.documents)} documents → {path}")
