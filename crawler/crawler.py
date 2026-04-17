@@ -7,17 +7,21 @@ from collections import deque
 
 class Crawler:
     def __init__(self, seed_url, max_pages=50):
-        self.seed_url = seed_url
         self.max_pages = max_pages
         self.visited = set()
-        self.queue = deque([seed_url])
         self.documents = []
 
-        self.base_domain = urlparse(seed_url).netloc
+        # handle single OR multiple seeds
+        if isinstance(seed_url, list):
+            self.queue = deque(seed_url)
+            self.base_domains = [urlparse(url).netloc for url in seed_url]
+        else:
+            self.queue = deque([seed_url])
+            self.base_domains = [urlparse(seed_url).netloc]
 
         self.headers = {
             "User-Agent": "Mozilla/5.0 (compatible; IRIS/1.0)"
-        }
+    }
 
     def fetch_page(self, url):
         try:
@@ -37,7 +41,7 @@ class Crawler:
         soup = BeautifulSoup(html, "lxml")
 
         # remove unwanted tags
-        for tag in soup(["script", "style", "noscript"]):
+        for tag in soup(["script", "style", "noscript", "header", "footer", "nav"]):
             tag.decompose()
 
         text = soup.get_text(separator=" ")
@@ -58,7 +62,7 @@ class Crawler:
                 continue
 
             # stay within same domain (relaxed)
-            if self.base_domain not in parsed.netloc:
+            if not any(domain in parsed.netloc for domain in self.base_domains):
                 continue
 
             # remove fragments (#section)
