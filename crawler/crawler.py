@@ -21,7 +21,7 @@ class Crawler:
 
         self.headers = {
             "User-Agent": "Mozilla/5.0 (compatible; IRIS/1.0)"
-    }
+        }
 
     def fetch_page(self, url):
         try:
@@ -40,8 +40,15 @@ class Crawler:
     def extract_text(self, html):
         soup = BeautifulSoup(html, "lxml")
 
-        # remove unwanted tags
-        for tag in soup(["script", "style", "noscript", "header", "footer", "nav"]):
+        # remove unwanted tags (expanded cleanup)
+        for tag in soup([
+            "script", "style", "noscript",
+            "header", "footer", "nav", "aside"
+        ]):
+            tag.decompose()
+
+        # remove wikipedia-specific junk
+        for tag in soup.select(".mw-editsection, .reference, .reflist"):
             tag.decompose()
 
         text = soup.get_text(separator=" ")
@@ -61,15 +68,26 @@ class Crawler:
             if parsed.scheme not in ["http", "https"]:
                 continue
 
-            # stay within same domain (relaxed)
+            # stay within allowed domains
             if not any(domain in parsed.netloc for domain in self.base_domains):
                 continue
 
-            # remove fragments (#section)
+            # remove fragment (#section)
             clean_url = full_url.split("#")[0]
 
-            # skip useless/edit pages
-            if "action=" in clean_url or "edit" in clean_url:
+            if any(x in clean_url for x in [
+                "action=",
+                "edit",
+                "Special:",
+                "Wikipedia:",
+                "File:",
+                "Help:",
+                "Category:",
+                "Portal:",
+                "Talk:",
+                "Template:",
+                "w/index.php"
+            ]):
                 continue
 
             links.add(clean_url)
