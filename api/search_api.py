@@ -1,7 +1,16 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware
 from query.query_engine import QueryEngine
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 engine = QueryEngine()
 
@@ -12,11 +21,13 @@ def root():
 
 
 @app.get("/search")
-def search(q: str):
-    if not q.strip():
-        return {"results": [], "message": "Empty query"}
+def search(q: str = Query(..., min_length=1)):
+    q = q.strip()
 
     results = engine.search(q)
 
-    return {"results": results}
-    
+    return {
+        "query": q,
+        "count": len(results),
+        "results": results
+    }
