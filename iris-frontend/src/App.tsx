@@ -7,11 +7,20 @@ type Result = {
   snippet: string;
 };
 
+function highlight(text: string, words: string[]) {
+  let result = text;
+  words.forEach((w) => {
+    const regex = new RegExp(`(${w})`, "gi");
+    result = result.replace(regex, "<mark>$1</mark>");
+  });
+  return result;
+}
+
 function App() {
-  const [query, setQuery] = useState<string>("");
+  const [query, setQuery] = useState("");
   const [results, setResults] = useState<Result[]>([]);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [searched, setSearched] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
 
   const search = async () => {
     if (!query.trim()) return;
@@ -24,41 +33,85 @@ function App() {
         `http://127.0.0.1:8000/search?q=${encodeURIComponent(query)}`
       );
 
-      console.log("API response:", res.data); 
-
-      setResults(res.data.results || []);
+      setResults(res.data?.results ?? []);
     } catch (err) {
-      console.error("Search error:", err);
+      console.error(err);
       setResults([]);
     }
 
     setLoading(false);
   };
 
-  return (
-    <div style={{ maxWidth: "800px", margin: "40px auto", fontFamily: "Arial" }}>
-      <h1 style={{ textAlign: "center" }}>🔍 IRIS Search</h1>
+  const queryWords = query.toLowerCase().split(" ");
 
-      <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
+  return (
+    <div style={{ maxWidth: "900px", margin: "40px auto", fontFamily: "Arial" }}>
+      
+      <h1 style={{ textAlign: "center", fontSize: "32px" }}>
+        🔍 IRIS Search
+      </h1>
+
+      <div style={{ display: "flex", gap: "10px", marginBottom: "25px" }}>
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search..."
-          style={{ flex: 1, padding: "10px" }}
+          placeholder="Search the web..."
+          style={{
+            flex: 1,
+            padding: "12px",
+            borderRadius: "8px",
+            border: "1px solid #ccc"
+          }}
           onKeyDown={(e) => e.key === "Enter" && search()}
         />
-        <button onClick={search}>Search</button>
+        <button
+          onClick={search}
+          style={{
+            padding: "12px 20px",
+            borderRadius: "8px",
+            border: "none",
+            background: "#2563eb",
+            color: "white",
+            cursor: "pointer"
+          }}
+        >
+          Search
+        </button>
       </div>
 
       {loading && <p>Searching...</p>}
 
+      {!loading && searched && (
+        <p style={{ color: "#555", marginBottom: "20px" }}>
+          {results.length} results found
+        </p>
+      )}
+
       {results.map((r, i) => (
-        <div key={i} style={{ marginBottom: "20px" }}>
-          <a href={r.url} target="_blank" rel="noreferrer">
+        <div key={i} style={{ marginBottom: "25px" }}>
+          <a
+            href={r.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              fontSize: "18px",
+              color: "#1a0dab",
+              textDecoration: "none"
+            }}
+          >
             {r.url}
           </a>
-          <p>{r.snippet}</p>
-          <small>Score: {r.score.toFixed(4)}</small>
+
+          <p
+            style={{ color: "#4d5156" }}
+            dangerouslySetInnerHTML={{
+              __html: highlight(r.snippet, queryWords),
+            }}
+          />
+
+          <small style={{ color: "#888" }}>
+            Score: {r.score.toFixed(4)}
+          </small>
         </div>
       ))}
 
